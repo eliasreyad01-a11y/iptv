@@ -48,7 +48,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private val h = Handler(Looper.getMainLooper())
     private var player: ExoPlayer? = null
-    private var httpF: DefaultHttpDataSource.Factory? = null
+    private var st: Streamer? = null
     private var ok = false
     private var retry = 0
     private var retryRun: Runnable? = null
@@ -141,13 +141,13 @@ class PlayerActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         if (ok && isFinishing && live) {         // leaving full screen: give the running player back to the list screen
-            val p = player
-            if (p != null) {
+            val sr = st
+            if (sr != null) {
                 h.removeCallbacksAndMessages(null)
-                p.removeListener(listener)
+                sr.p.removeListener(listener)
                 pv.player = null
-                SharedPlayer.player = p; SharedPlayer.http = httpF
-                player = null
+                SharedPlayer.streamer = sr
+                st = null; player = null
             }
         }
     }
@@ -158,8 +158,8 @@ class PlayerActivity : AppCompatActivity() {
         saveProgress()
         h.removeCallbacksAndMessages(null)
         pv.player = null
-        player?.release()
-        player = null
+        st?.release()
+        st = null; player = null
     }
 
     // ---------------- player setup ----------------
@@ -167,56 +167,37 @@ class PlayerActivity : AppCompatActivity() {
     private var adopted = false
 
     private fun initPlayer() {
-        SharedPlayer.player?.let { p ->
+        SharedPlayer.streamer?.let { sr ->
             adopted = true
-            httpF = SharedPlayer.http
-            SharedPlayer.player = null
-            p.addListener(listener)
-            pv.player = p
-            player = p
-            if (p.playbackState == Player.STATE_BUFFERING) showStatus(getString(R.string.loading), true)
+            SharedPlayer.streamer = null
+            st = sr; player = sr.p
+            sr.p.addListener(listener)
+            pv.player = sr.p
+            if (sr.p.playbackState == Player.STATE_BUFFERING) showStatus(getString(R.string.loading), true)
             return
         }
-        val http = DefaultHttpDataSource.Factory().also { httpF = it }
-            .setUserAgent(Net.UA)
-            .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(10_000)
-            .setReadTimeoutMs(12_000)
-        val b = when (Store.buffer) {          // min, max, start, after-rebuffer (ms): small buffers = low RAM + fast zapping
-            0 -> intArrayOf(3_000, 10_000, 500, 1_000)
-            2 -> intArrayOf(20_000, 60_000, 2_000, 5_000)
-            else -> intArrayOf(10_000, 30_000, 1_000, 2_500)
-        }
-        val lc = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(b[0], b[1], b[2], b[3])
-            .setTargetBufferBytes(24 * 1024 * 1024)
-            .setPrioritizeTimeOverSizeThresholds(false)
-            .build()
-        val p = ExoPlayer.Builder(this, DefaultRenderersFactory(this).setEnableDecoderFallback(true))
-            .setMediaSourceFactory(DefaultMediaSourceFactory(http))
-            .setLoadControl(lc)
-            .build()
-        p.addListener(listener)
-        pv.player = p
-        player = p
+        val sr = Streamer(this)
+        st = sr; player = sr.p
+        sr.p.addListener(listener)
+        pv.player = sr.p
     }
 
     private val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) {
             when (state) {
                 Player.STATE_BUFFERING -> showStatus(getString(R.string.loading), true)
-                Player.STATE_READY -> { retry = 0; status.visibility = View.GONE }
+                Player.STATE_READY -> { retry = 0; st?.onReady(); status.visibility = View.GONE }
                 Player.STATE_ENDED -> onEnded()
             }
         }
-        override fun onPlayerError(error: PlaybackException) = handleError(error)
+        override fun onPlayerError(error: PlaybackException) { if (st?.onError(error) == true) showStatus(getString(R.string.loading), true) else handleError(error) }
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             btnPlay.setText(if (playWhenReady) R.string.pause else R.string.play)
         }
     }
 
     private fun playIndex(i: Int, startMs: Long? = null) {
-        val p = player ?: return
+        if (player == null) return
         val q = PlayQueue.items[i]
         PlayQueue.index = i
         if (adopted) {
@@ -225,20 +206,8 @@ class PlayerActivity : AppCompatActivity() {
         }
         retryRun?.let { h.removeCallbacks(it) }
         retry = 0
-        val (u, hd) = splitHeaders(q.url)
-        httpF?.applyHeaders(hd)
-        val mi = MediaItem.Builder().setUri(u)
-        if (u.contains(".m3u8", true)) mi.setMimeType(MimeTypes.APPLICATION_M3U8)
-        subUrl?.let { u ->
-            val mime = if (u.contains(".vtt", true)) MimeTypes.TEXT_VTT else MimeTypes.APPLICATION_SUBRIP
-            mi.setSubtitleConfigurations(listOf(
-                MediaItem.SubtitleConfiguration.Builder(Uri.parse(u)).setMimeType(mime).setLanguage("und")
-                    .setSelectionFlags(C.SELECTION_FLAG_DEFAULT).build()))
-        }
         val start = startMs ?: if (live) C.TIME_UNSET else Store.progress(q.url).let { if (it > 3000) it - 3000 else C.TIME_UNSET }
-        p.setMediaItem(mi.build(), start)
-        p.prepare()
-        p.play()
+        st?.play(q.url, start, subUrl)
         if (live) Store.setStr("last_live", q.id)
         updateMeta()
     }

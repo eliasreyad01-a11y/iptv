@@ -64,78 +64,68 @@ class LiveActivity : BrowseBase<Channel>() {
 
     // ---------------- preview ----------------
 
-    private var prev: ExoPlayer? = null
+    private var st: Streamer? = null
     private var prevCh: Channel? = null
-    private var httpF: DefaultHttpDataSource.Factory? = null
 
     private val prevListener = object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) {
-            if (state == Player.STATE_READY) findViewById<TextView>(R.id.tvPrevStatus).text = ""
+            if (state == Player.STATE_READY) { st?.onReady(); findViewById<TextView>(R.id.tvPrevStatus).text = "" }
             else if (state == Player.STATE_BUFFERING) findViewById<TextView>(R.id.tvPrevStatus).setText(R.string.loading)
         }
         override fun onPlayerError(error: PlaybackException) {
-            findViewById<TextView>(R.id.tvPrevStatus).setText(R.string.play_error)
+            if (st?.onError(error) == true) findViewById<TextView>(R.id.tvPrevStatus).setText(R.string.loading)
+            else findViewById<TextView>(R.id.tvPrevStatus).setText(R.string.play_error)
         }
     }
 
     override fun onStart() {
         super.onStart()
         val pv = findViewById<PlayerView>(R.id.pvPreview)
-        val shared = SharedPlayer.player
+        val shared = SharedPlayer.streamer
         if (shared != null) {                   // back from full screen: same player, same stream, no restart
-            SharedPlayer.player = null
-            httpF = SharedPlayer.http
-            shared.addListener(prevListener)
-            pv.player = shared
-            prev = shared
+            SharedPlayer.streamer = null
+            st = shared
+            shared.p.addListener(prevListener)
+            pv.player = shared.p
             if (PlayQueue.live && PlayQueue.items.isNotEmpty()) {
                 val q = PlayQueue.items[PlayQueue.index.coerceIn(0, PlayQueue.items.size - 1)]
                 prevCh = Channel(q.id, q.title, "", q.url, q.sub)
                 findViewById<TextView>(R.id.tvPrevTitle).text = q.title
             }
             focusItem(PlayQueue.index)
-            if (shared.playbackState == Player.STATE_READY) findViewById<TextView>(R.id.tvPrevStatus).text = ""
+            if (shared.p.playbackState == Player.STATE_READY) findViewById<TextView>(R.id.tvPrevStatus).text = ""
             return
         }
-        val http = DefaultHttpDataSource.Factory().also { httpF = it }
-            .setUserAgent(Net.UA).setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(10_000).setReadTimeoutMs(12_000)
-        val p = ExoPlayer.Builder(this).setMediaSourceFactory(DefaultMediaSourceFactory(http)).build()
-        p.addListener(prevListener)
-        pv.player = p
-        prev = p
+        val s = Streamer(this)
+        s.p.addListener(prevListener)
+        pv.player = s.p
+        st = s
         prevCh?.let { startPreview(it) }
     }
 
     override fun onStop() {
         findViewById<PlayerView>(R.id.pvPreview).player = null
-        prev?.release()
-        prev = null
+        st?.release()
+        st = null
         super.onStop()
     }
 
     private fun startPreview(c: Channel) {
-        val p = prev ?: return
+        val s = st ?: return
         prevCh = c
         findViewById<TextView>(R.id.tvPrevTitle).text = c.name
-        val (u, hd) = splitHeaders(c.url)
-        httpF?.applyHeaders(hd)
-        val mi = MediaItem.Builder().setUri(u)
-        if (u.contains(".m3u8", true)) mi.setMimeType(MimeTypes.APPLICATION_M3U8)
-        p.setMediaItem(mi.build())
-        p.prepare()
-        p.playWhenReady = true
+        s.play(c.url)
     }
 
     override fun open(list: List<Channel>, index: Int) {
         val c = list[index]
-        if (prevCh?.url == c.url && prev != null) {
+        if (prevCh?.url == c.url && st != null) {
             PlayQueue.set(true, list.map { QItem(it.id, it.name, it.group, it.url, favKey(it)) }, index)
-            val p = prev!!                      // hand the running player to full screen: no reconnect, no black gap
-            p.removeListener(prevListener)
+            val s = st!!                        // hand the running player to full screen: no reconnect, no black gap
+            s.p.removeListener(prevListener)
             findViewById<PlayerView>(R.id.pvPreview).player = null
-            SharedPlayer.player = p; SharedPlayer.http = httpF; SharedPlayer.url = c.url
-            prev = null
+            SharedPlayer.streamer = s; SharedPlayer.url = c.url
+            st = null
             startActivity(Intent(this, PlayerActivity::class.java))
         } else startPreview(c)
     }
@@ -150,7 +140,7 @@ class LiveActivity : BrowseBase<Channel>() {
                     0 -> toggleFav(t)
                     1 -> pickCategory(t)
                     else -> {
-                        if (prevCh?.url == t.url) { prev?.stop(); prevCh = null; findViewById<TextView>(R.id.tvPrevTitle).text = "" }
+                        if (prevCh?.url == t.url) { st?.cancel(); st?.p?.stop(); prevCh = null; findViewById<TextView>(R.id.tvPrevTitle).text = "" }
                         Store.hide(favKey(t))
                         removeItem(t)
                         toast(R.string.channel_deleted)
