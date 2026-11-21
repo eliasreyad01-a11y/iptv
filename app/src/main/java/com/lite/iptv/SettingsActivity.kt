@@ -20,7 +20,7 @@ class SettingsActivity : AppCompatActivity() {
     private class Row(val title: Int, val value: () -> String, val action: () -> Unit)
 
     private lateinit var rows: List<Row>
-    private val ad = Adapter<Row>(R.layout.item_setting) { v, r, _ ->
+    private val ad = Adapter<Row>(R.layout.item_setting_tile) { v, r, _ ->
         v.findViewById<TextView>(R.id.tvTitle).setText(r.title)
         v.findViewById<TextView>(R.id.tvValue).text = r.value()
     }
@@ -32,6 +32,9 @@ class SettingsActivity : AppCompatActivity() {
         wireBack()
         rows = listOf(
             Row(R.string.playlists, { "" }) { startActivity(Intent(this, PlaylistActivity::class.java)) },
+            Row(R.string.restore_deleted, { Store.hiddenCount().toString() }) {
+                val n = Store.hiddenCount(); Store.clearHidden(); Store.clearMoves(); toast(getString(R.string.restored_n, n))
+            },
             Row(R.string.language, {
                 getString(when (Store.lang) { "en" -> R.string.lang_en; "ar" -> R.string.lang_ar; else -> R.string.lang_auto })
             }) {
@@ -45,14 +48,11 @@ class SettingsActivity : AppCompatActivity() {
                 getString(when (Store.buffer) { 0 -> R.string.buf_low; 2 -> R.string.buf_high; else -> R.string.buf_normal })
             }) { Store.buffer = (Store.buffer + 1) % 3 },
             Row(R.string.auto_reconnect, { getString(if (Store.reconnect) R.string.on else R.string.off) }) { Store.reconnect = !Store.reconnect },
-            Row(R.string.restore_deleted, { Store.hiddenCount().toString() }) {
-                val n = Store.hiddenCount(); Store.clearHidden(); Store.clearMoves(); toast(getString(R.string.restored_n, n))
-            },
             Row(R.string.refresh_playlist, { "" }) { Repo.reset(this); toast(R.string.done) },
             Row(R.string.clear_cache, { "" }) { clearCache() },
             Row(R.string.about, { "" }) { about() }
         )
-        findViewById<RecyclerView>(R.id.rv).setup(LinearLayoutManager(this), ad)
+        findViewById<RecyclerView>(R.id.rv).setup(androidx.recyclerview.widget.GridLayoutManager(this, 4), ad)
         ad.submit(rows)
         ad.onClick = { r, i -> r.action(); ad.notifyItemChanged(i) }
     }

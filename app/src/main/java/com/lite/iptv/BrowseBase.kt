@@ -209,7 +209,10 @@ abstract class BrowseBase<T : Any> : AppCompatActivity() {
         cats = c
         catAd.submit(c)
         val last = Store.getStr("cat_$screenKey", "*all")
-        val key = if (c.any { it.key == last }) last else "*all"
+        val want = if (!ready) intent.getStringExtra("cat_match")?.let { rx ->
+            val r = Regex(rx, RegexOption.IGNORE_CASE); c.firstOrNull { !it.key.startsWith("*") && r.containsMatchIn(it.key) }?.key
+        } else null
+        val key = want ?: if (c.any { it.key == last }) last else "*all"
         val idx = c.indexOfFirst { it.key == key }.coerceAtLeast(0)
         ready = true
         select(key, false)
