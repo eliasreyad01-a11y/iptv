@@ -48,6 +48,7 @@ class SettingsActivity : AppCompatActivity() {
                 getString(when (Store.buffer) { 0 -> R.string.buf_low; 2 -> R.string.buf_high; else -> R.string.buf_normal })
             }) { Store.buffer = (Store.buffer + 1) % 3 },
             Row(R.string.auto_reconnect, { getString(if (Store.reconnect) R.string.on else R.string.off) }) { Store.reconnect = !Store.reconnect },
+            Row(R.string.check_channels, { "" }) { checkChannels() },
             Row(R.string.refresh_playlist, { "" }) { Repo.reset(this); toast(R.string.done) },
             Row(R.string.clear_cache, { "" }) { clearCache() },
             Row(R.string.about, { "" }) { about() }
@@ -55,6 +56,24 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<RecyclerView>(R.id.rv).setup(androidx.recyclerview.widget.GridLayoutManager(this, 4), ad)
         ad.submit(rows)
         ad.onClick = { r, i -> r.action(); ad.notifyItemChanged(i) }
+    }
+
+    private fun checkChannels() {
+        if (Store.active() == null) { toast(R.string.no_playlist); return }
+        val dlg = AlertDialog.Builder(this).setTitle(R.string.check_channels).setMessage(getString(R.string.checking))
+            .setCancelable(false).setNegativeButton(android.R.string.cancel, null).create()
+        dlg.show()
+        val job = lifecycleScope.launch {
+            try {
+                val chs = Repo.live(applicationContext).filter { !Store.isHidden(Store.favKey("L", it.id)) }
+                val dead = Checker.dead(chs) { d, t -> runOnUiThread { dlg.setMessage("$d / $t") } }
+                Store.hideMany(dead.map { Store.favKey("L", it.id) })
+                dlg.setMessage(getString(R.string.check_done, dead.size, chs.size))
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e
+            } catch (e: Exception) { dlg.setMessage(e.message ?: "error") }
+            dlg.getButton(AlertDialog.BUTTON_NEGATIVE)?.setText(android.R.string.ok)
+        }
+        dlg.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener { job.cancel(); dlg.dismiss() }
     }
 
     private fun clearCache() {

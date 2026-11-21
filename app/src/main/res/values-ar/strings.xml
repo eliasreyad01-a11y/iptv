@@ -90,4 +90,7 @@
     <string name="rename_category">تعديل اسم القسم</string>
     <string name="delete_category">حذف القسم</string>
     <string name="confirm_delete_category">حذف هذا القسم وقنواته (%1$d)؟ بتقدر ترجعهم من الإعدادات.</string>
+    <string name="check_channels">فحص القنوات وإخفاء الميتة</string>
+    <string name="checking">جاري الفحص…</string>
+    <string name="check_done">تم: أخفيت %1$d قناة ميتة من %2$d. بتقدر ترجعهم من الإعدادات.</string>
 </resources>

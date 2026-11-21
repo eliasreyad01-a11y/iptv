@@ -34,7 +34,5 @@
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode"
             android:exported="false"
             android:screenOrientation="sensorLandscape" />
-            <activity android:name=".VodActivity" android:exported="false" android:screenOrientation="sensorLandscape" />
-        <activity android:name=".DetailActivity" android:exported="false" android:screenOrientation="sensorLandscape" />
     </application>
 </manifest>
