@@ -637,9 +637,9 @@ https://cdn1tlinkgo.tlink.cl/tve/index.m3u8
 #EXTINF:-1 tvg-id="TVEStar.es@HD" tvg-logo="https://i.ibb.co/j98NY8Mr/starcolor.png" group-title="عامة",TVE Star HD | تي في اي ستار
 https://rtvelivestream-rtveplayplus.rtve.es/rtvesec/int/star_main_1080.m3u8
 #EXTINF:-1 tvg-id="" tvg-logo="" group-title="الأردن",Roya | رؤيا
-https://weyyak-live.akamaized.net/weyyak_roya/index.m3u8
+https://royatv-live.daioncdn.net/royatv/royatv.m3u8
 #EXTINF:-1 tvg-id="" tvg-logo="" group-title="الأردن",Al Mamlaka | المملكة
-https://almamlka-live.ercdn.net/almamlka/almamlka.m3u8
+https://almamlka-live.ercdn.net/almamlka/almamlka_1080p.m3u8
 #EXTINF:-1 tvg-id="JordanTV.jo@SD" tvg-logo="https://i.imgur.com/0XozB5N.png" group-title="الأردن",Jordan Satellite Channel | التلفزيون الأردني
 https://jrtv-live.ercdn.net/jordanhd/jordanhd.m3u8
 #EXTINF:-1 tvg-id="AmmanTV.jo@SD" tvg-logo="https://i.imgur.com/5l7kw0b.png" group-title="الأردن",Amman TV | عمان تي في
