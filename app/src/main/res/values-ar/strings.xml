@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Lite IPTV</string>
+    <string name="app_name">IPTV</string>
     <string name="live">البث المباشر</string>
     <string name="movies">الأفلام</string>
     <string name="series">المسلسلات</string>
