@@ -45,9 +45,9 @@ class LiveActivity : BrowseBase<Channel>() {
         val l = g.lowercase().padEnd(3, ' ')
         return 1000 + l[0].code * 10000 + l[1].code * 100 + l[2].code
     }
-    private val WORLD = listOf("News", "Sports", "Kids & Cartoons", "Arab Series & Movies", "World Movies", "Documentary", "Music", "General")
-    private val ARAB = listOf("Jordan", "Palestine", "Saudi Arabia", "United Arab Emirates", "Egypt", "Iraq", "Kuwait", "Qatar",
-        "Bahrain", "Oman", "Lebanon", "Syria", "Yemen", "Libya", "Tunisia", "Algeria", "Morocco", "Sudan", "Mauritania")
+    private val WORLD = listOf("أخبار", "رياضة", "أطفال وكرتون", "مسلسلات وأفلام عربية", "أفلام عالمية", "وثائقي", "موسيقى", "عامة")
+    private val ARAB = listOf("الأردن", "فلسطين", "السعودية", "الإمارات", "مصر", "العراق", "الكويت", "قطر",
+        "البحرين", "عُمان", "لبنان", "سوريا", "اليمن", "ليبيا", "تونس", "الجزائر", "المغرب", "السودان", "موريتانيا")
     override fun groupOf(t: Channel) = t.group
     override fun nameOf(t: Channel) = t.name
     override fun favKey(t: Channel) = Store.favKey("L", t.id)
@@ -67,6 +67,15 @@ class LiveActivity : BrowseBase<Channel>() {
     private var st: Streamer? = null
     private var prevCh: Channel? = null
 
+    private fun errorDetail(e: PlaybackException): String {
+        var c: Throwable? = e.cause
+        while (c != null) {
+            if (c is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException) return "HTTP " + c.responseCode
+            c = c.cause
+        }
+        return e.errorCodeName.removePrefix("ERROR_CODE_")
+    }
+
     private val prevListener = object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) {
             if (state == Player.STATE_READY) { st?.onReady(); findViewById<TextView>(R.id.tvPrevStatus).text = "" }
@@ -74,7 +83,7 @@ class LiveActivity : BrowseBase<Channel>() {
         }
         override fun onPlayerError(error: PlaybackException) {
             if (st?.onError(error) == true) findViewById<TextView>(R.id.tvPrevStatus).setText(R.string.loading)
-            else findViewById<TextView>(R.id.tvPrevStatus).setText(R.string.play_error)
+            else findViewById<TextView>(R.id.tvPrevStatus).text = getString(R.string.play_error) + "\n" + errorDetail(error)
         }
     }
 
