@@ -39,6 +39,9 @@ class Streamer(ctx: Context) {
         .setAllowChunklessPreparation(true)
         .setExtractorFactory(DefaultHlsExtractorFactory(TS_FLAGS, false))
 
+    private val progressive = androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(http,
+        DefaultExtractorsFactory().setTsExtractorFlags(TS_FLAGS).setConstantBitrateSeekingEnabled(true))
+
     val p: ExoPlayer
 
     private val h = Handler(Looper.getMainLooper())
@@ -89,7 +92,11 @@ class Streamer(ctx: Context) {
         if (isHls) {
             mi.setMimeType(MimeTypes.APPLICATION_M3U8)
             p.setMediaSource(hls.createMediaSource(mi.build()), startMs)
-        } else p.setMediaItem(mi.build(), startMs)
+        } else try {
+            p.setMediaItem(mi.build(), startMs)
+        } catch (e: IllegalStateException) {            // link type the player can't tell: read it as a plain stream
+            p.setMediaSource(progressive.createMediaSource(mi.setMimeType(MimeTypes.VIDEO_MP2T).build()), startMs)
+        }
         p.prepare()
         p.playWhenReady = true
     }
