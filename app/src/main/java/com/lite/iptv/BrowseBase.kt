@@ -96,10 +96,6 @@ abstract class BrowseBase<T : Any> : AppCompatActivity() {
         rvCats.setup(LinearLayoutManager(this), catAd)
         rvItems.setup(makeLayoutManager(), itemAd)
 
-        catAd.onFocus = { c, _ ->
-            pendingSel?.let { h.removeCallbacks(it) }
-            pendingSel = Runnable { if (curKey != c.key) select(c.key, false) }.also { h.postDelayed(it, 120) }
-        }
         catAd.onClick = { c, _ -> select(c.key, true) }
         catAd.onLong = { c, _ -> onLongCat(c.key) }
         catAd.holdEdges = true

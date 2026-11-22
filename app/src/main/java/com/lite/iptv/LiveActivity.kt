@@ -78,27 +78,94 @@ class LiveActivity : BrowseBase<Channel>() {
         }
     }
 
+    // ---- in-place full screen: the SAME player view just grows to the whole screen, so nothing reloads ----
+    private var fs = false
+    private var fsList: List<Channel> = emptyList()
+    private var fsIdx = 0
+    private val infoHide = Runnable { findViewById<View>(R.id.tvFsInfo).visibility = View.GONE }
+    private val fsBack = object : androidx.activity.OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() { exitFs() }
+    }
+
+    override fun onCreate(b: android.os.Bundle?) {
+        super.onCreate(b)
+        val root = findViewById<View>(R.id.root)
+        val slot = findViewById<View>(R.id.flSlot)
+        val place = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> placeOverlay() }
+        slot.addOnLayoutChangeListener(place)
+        root.addOnLayoutChangeListener(place)
+        findViewById<View>(R.id.flPlayer).setOnClickListener { if (fs) exitFs() }
+        onBackPressedDispatcher.addCallback(this, fsBack)
+    }
+
+    private fun placeOverlay() {
+        if (fs) return
+        val slot = findViewById<View>(R.id.flSlot); val fl = findViewById<View>(R.id.flPlayer); val root = findViewById<View>(R.id.root)
+        if (slot.width == 0) return
+        val a = IntArray(2); val r = IntArray(2)
+        slot.getLocationInWindow(a); root.getLocationInWindow(r)
+        val lp = fl.layoutParams as android.widget.FrameLayout.LayoutParams
+        val x = a[0] - r[0]; val y = a[1] - r[1]
+        if (lp.width != slot.width || lp.height != slot.height || lp.leftMargin != x || lp.topMargin != y) {
+            lp.gravity = android.view.Gravity.TOP or android.view.Gravity.LEFT
+            lp.width = slot.width; lp.height = slot.height; lp.leftMargin = x; lp.topMargin = y
+            fl.layoutParams = lp
+        }
+        fl.visibility = View.VISIBLE
+    }
+
+    private fun enterFs(list: List<Channel>, index: Int) {
+        fs = true; fsList = list; fsIdx = index
+        val fl = findViewById<View>(R.id.flPlayer)
+        val lp = fl.layoutParams as android.widget.FrameLayout.LayoutParams
+        lp.width = -1; lp.height = -1; lp.leftMargin = 0; lp.topMargin = 0
+        fl.layoutParams = lp
+        findViewById<android.view.ViewGroup>(R.id.contentRoot).descendantFocusability = android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        fsBack.isEnabled = true
+        showInfo()
+    }
+
+    private fun exitFs() {
+        if (!fs) return
+        fs = false
+        fsBack.isEnabled = false
+        findViewById<View>(R.id.tvFsInfo).visibility = View.GONE
+        findViewById<android.view.ViewGroup>(R.id.contentRoot).descendantFocusability = android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS
+        placeOverlay()
+        focusItem(fsIdx)
+    }
+
+    private fun zap(d: Int) {
+        if (fsList.isEmpty()) return
+        fsIdx = (fsIdx + d + fsList.size) % fsList.size
+        startPreview(fsList[fsIdx])
+        showInfo()
+    }
+
+    private fun showInfo() {
+        val t = findViewById<TextView>(R.id.tvFsInfo)
+        t.text = "${fsIdx + 1}   ${fsList.getOrNull(fsIdx)?.name ?: ""}"
+        t.visibility = View.VISIBLE
+        t.removeCallbacks(infoHide); t.postDelayed(infoHide, 3500)
+    }
+
+    override fun dispatchKeyEvent(ev: android.view.KeyEvent): Boolean {
+        if (!fs) return super.dispatchKeyEvent(ev)
+        if (ev.action == android.view.KeyEvent.ACTION_DOWN) when (ev.keyCode) {
+            android.view.KeyEvent.KEYCODE_DPAD_UP, android.view.KeyEvent.KEYCODE_CHANNEL_DOWN, android.view.KeyEvent.KEYCODE_PAGE_UP -> zap(-1)
+            android.view.KeyEvent.KEYCODE_DPAD_DOWN, android.view.KeyEvent.KEYCODE_CHANNEL_UP, android.view.KeyEvent.KEYCODE_PAGE_DOWN -> zap(1)
+            android.view.KeyEvent.KEYCODE_DPAD_CENTER, android.view.KeyEvent.KEYCODE_ENTER, android.view.KeyEvent.KEYCODE_NUMPAD_ENTER,
+            android.view.KeyEvent.KEYCODE_BACK, android.view.KeyEvent.KEYCODE_ESCAPE -> exitFs()
+            android.view.KeyEvent.KEYCODE_MENU, android.view.KeyEvent.KEYCODE_INFO -> showInfo()
+        }
+        return true
+    }
+
     override fun onStart() {
         super.onStart()
-        val pv = findViewById<PlayerView>(R.id.pvPreview)
-        val shared = SharedPlayer.streamer
-        if (shared != null) {                   // back from full screen: same player, same stream, no restart
-            SharedPlayer.streamer = null
-            st = shared
-            shared.p.addListener(prevListener)
-            pv.player = shared.p
-            if (PlayQueue.live && PlayQueue.items.isNotEmpty()) {
-                val q = PlayQueue.items[PlayQueue.index.coerceIn(0, PlayQueue.items.size - 1)]
-                prevCh = Channel(q.id, q.title, "", q.url, q.sub)
-                findViewById<TextView>(R.id.tvPrevTitle).text = q.title
-            }
-            focusItem(PlayQueue.index)
-            if (shared.p.playbackState == Player.STATE_READY) findViewById<TextView>(R.id.tvPrevStatus).text = ""
-            return
-        }
         val s = Streamer(this)
         s.p.addListener(prevListener)
-        pv.player = s.p
+        findViewById<PlayerView>(R.id.pvPreview).player = s.p
         st = s
         prevCh?.let { startPreview(it) }
     }
@@ -114,20 +181,14 @@ class LiveActivity : BrowseBase<Channel>() {
         val s = st ?: return
         prevCh = c
         findViewById<TextView>(R.id.tvPrevTitle).text = c.name
+        Store.setStr("last_live", c.id)
         s.play(c.url)
     }
 
     override fun open(list: List<Channel>, index: Int) {
         val c = list[index]
-        if (prevCh?.url == c.url && st != null) {
-            PlayQueue.set(true, list.map { QItem(it.id, it.name, it.group, it.url, favKey(it)) }, index)
-            val s = st!!                        // hand the running player to full screen: no reconnect, no black gap
-            s.p.removeListener(prevListener)
-            findViewById<PlayerView>(R.id.pvPreview).player = null
-            SharedPlayer.streamer = s; SharedPlayer.url = c.url
-            st = null
-            startActivity(Intent(this, PlayerActivity::class.java))
-        } else startPreview(c)
+        if (prevCh?.url == c.url && st != null) enterFs(list, index)
+        else startPreview(c)
     }
 
     override fun onLongItem(t: Channel): Boolean {
