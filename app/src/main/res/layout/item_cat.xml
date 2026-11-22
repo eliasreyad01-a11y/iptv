@@ -4,7 +4,7 @@
     android:clickable="true" android:focusable="true" android:gravity="center_vertical" android:minHeight="44dp"
     android:paddingStart="14dp" android:paddingEnd="14dp">
     <TextView android:id="@+id/tvName" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-        android:ellipsize="end" android:maxLines="1" android:textColor="@color/white" android:textSize="16sp" />
+        android:ellipsize="end" android:maxLines="1" android:textColor="@color/white" android:textSize="15sp" />
     <TextView android:id="@+id/tvCount" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp"
         android:textColor="@color/dim" android:textSize="13sp" />
 </LinearLayout>

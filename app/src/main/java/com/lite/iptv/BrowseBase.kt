@@ -88,7 +88,7 @@ abstract class BrowseBase<T : Any> : AppCompatActivity() {
         pbLoad = findViewById(R.id.pbLoad); etSearch = findViewById(R.id.etSearch); btnRetry = findViewById(R.id.btnRetry)
 
         catAd = Adapter<Cat>(R.layout.item_cat) { v, c, _ ->
-            v.findViewById<TextView>(R.id.tvName).text = c.label
+            v.findViewById<TextView>(R.id.tvName).text = bilingual(c.label)
             v.findViewById<TextView>(R.id.tvCount).text = c.count.toString()
         }
         itemAd = Adapter<T>(itemLayout) { v, t, i -> bind(v, t, i) }
@@ -185,6 +185,16 @@ abstract class BrowseBase<T : Any> : AppCompatActivity() {
             if (cur.isNotEmpty()) (rvItems.findViewHolderForAdapterPosition(n)?.itemView ?: rvItems).requestFocus()
             else rvCats.requestFocus()
         }, 80)
+    }
+
+    private fun bilingual(l: String): String {
+        val en = mapOf("أخبار" to "News", "رياضة" to "Sports", "أطفال وكرتون" to "Kids", "مسلسلات وأفلام عربية" to "Arabic Movies",
+            "أفلام عالمية" to "Movies", "وثائقي" to "Documentary", "موسيقى" to "Music", "عامة" to "General", "الأردن" to "Jordan",
+            "فلسطين" to "Palestine", "السعودية" to "Saudi", "الإمارات" to "UAE", "مصر" to "Egypt", "العراق" to "Iraq", "الكويت" to "Kuwait",
+            "قطر" to "Qatar", "البحرين" to "Bahrain", "عُمان" to "Oman", "لبنان" to "Lebanon", "سوريا" to "Syria", "اليمن" to "Yemen",
+            "ليبيا" to "Libya", "تونس" to "Tunisia", "الجزائر" to "Algeria", "المغرب" to "Morocco", "السودان" to "Sudan",
+            "موريتانيا" to "Mauritania", "أمريكا" to "USA", "بريطانيا" to "UK", "كندا" to "Canada", "تركيا" to "Turkey")[l]
+        return if (en == null) l else "$l | $en"
     }
 
     private fun makeCats(): List<Cat> {
