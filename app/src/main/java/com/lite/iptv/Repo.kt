@@ -179,8 +179,15 @@ object Repo {
             if (id != null) out.add(Channel(id, (m["name"] ?: "").trim(), m["stream_icon"] ?: "",
                 "$base/live/${p.user}/${p.pass}/$id.$ext", cats[m["category_id"]] ?: "Other"))
         }
-        return out
+        // drop near-identical channels inside one category (same name ignoring quality tags / prefixes)
+        val seen = HashSet<String>()
+        return out.filter { seen.add(it.group + "|" + likeKey(it.name)) }
     }
+
+    private fun likeKey(n: String): String = n.lowercase()
+        .replace(Regex("\\[[^]]*]|\\([^)]*\\)"), " ")
+        .replace(Regex("\\b(fhd|uhd|hd|sd|4k|hevc|h265|backup|raw|\\d{3,4}p)\\b"), " ")
+        .replace(Regex("[^\\p{L}\\p{N}]+"), "")
 
     private fun xMovies(c: Context, p: Playlist): List<Vod> {
         val cats = xCats(c, p, "vod")

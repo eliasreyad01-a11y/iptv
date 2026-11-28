@@ -51,13 +51,13 @@ object Store {
         val a = JSONArray(sp.getString("playlists", "[]"))
         return (0 until a.length()).map {
             val o = a.getJSONObject(it)
-            Playlist(o.getString("id"), o.getString("name"), o.getString("type"), o.getString("url"), o.optString("user"), o.optString("pass"))
+            Playlist(o.getString("id"), o.getString("name"), o.getString("type"), Vault.dec(o.getString("url")), Vault.dec(o.optString("user")), Vault.dec(o.optString("pass")))
         }
     }
 
     fun savePlaylists(l: List<Playlist>) {
         val a = JSONArray()
-        l.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name).put("type", it.type).put("url", it.url).put("user", it.user).put("pass", it.pass)) }
+        l.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name).put("type", it.type).put("url", if (it.type == "m3u" && it.url.startsWith("asset:")) it.url else Vault.enc(it.url)).put("user", Vault.enc(it.user)).put("pass", Vault.enc(it.pass))) }
         sp.edit().putString("playlists", a.toString()).apply()
     }
 
