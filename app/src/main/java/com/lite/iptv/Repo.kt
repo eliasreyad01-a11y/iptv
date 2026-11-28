@@ -91,25 +91,34 @@ object Repo {
         }
     }
 
-    /** Adds the live channels of every other saved playlist/server, dropping channels that already exist. */
+    /** Adds the live channels of every other saved playlist/server (loaded in parallel, 45s cap each), skipping duplicates. */
     private fun mergeOthers(c: Context, active: Playlist, mine: List<Channel>): List<Channel> {
         val others = Store.playlists().filter { it.id != active.id }
         if (others.isEmpty()) return mine
         val out = ArrayList<Channel>(mine)
         val seen = HashSet<String>()
         mine.forEach { seen.add(likeKey(it.name)) }
-        for (o in others) {
-            try {
-                val sl = live; val sm = movies; val ss = series; val se = m3uEps; val sr = ranks["live"]
-                val list = if (o.type == "m3u") { loadM3u(c, o); live ?: emptyList() } else xLive(c, o)
-                live = sl; movies = sm; series = ss; m3uEps = se
-                if (sr != null) ranks["live"] = sr else ranks.remove("live")
-                for (ch in list) {
-                    val k = likeKey(ch.name)
-                    if (k.length >= 3 && seen.add(k)) out.add(ch.copy(id = o.id + ":" + ch.id))
-                }
-            } catch (e: Exception) { /* an unreachable server must not break the others */ }
-        }
+        val savedRank = ranks["live"]
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(3)
+        try {
+            val jobs = others.filter { it.type != "m3u" }.map { o -> o to pool.submit<List<Channel>> { xLive(c, o) } }
+            for (o in others.filter { it.type == "m3u" }) {
+                try {
+                    val sl = live; val sm = movies; val ss = series; val se = m3uEps
+                    loadM3u(c, o); val list = live ?: emptyList()
+                    live = sl; movies = sm; series = ss; m3uEps = se
+                    for (ch in list) { val k = likeKey(ch.name); if (k.length >= 3 && seen.add(k)) out.add(ch.copy(id = o.id + ":" + ch.id)) }
+                } catch (e: Exception) { }
+            }
+            for ((o, f) in jobs) {
+                try {
+                    for (ch in f.get(45, java.util.concurrent.TimeUnit.SECONDS)) {
+                        val k = likeKey(ch.name); if (k.length >= 3 && seen.add(k)) out.add(ch.copy(id = o.id + ":" + ch.id))
+                    }
+                } catch (e: Exception) { f.cancel(true) }
+            }
+        } finally { pool.shutdownNow() }
+        if (savedRank != null) ranks["live"] = savedRank else ranks.remove("live")
         return out
     }
 
