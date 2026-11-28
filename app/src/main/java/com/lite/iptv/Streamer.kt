@@ -33,10 +33,11 @@ class Streamer(ctx: Context) {
 
     val http = DefaultHttpDataSource.Factory()
         .setUserAgent(UAS[0]).setAllowCrossProtocolRedirects(true)
-        .setConnectTimeoutMs(10_000).setReadTimeoutMs(12_000)
+        .setConnectTimeoutMs(12_000).setReadTimeoutMs(25_000)
 
     private val hls = HlsMediaSource.Factory(http)
         .setAllowChunklessPreparation(true)
+        .setLoadErrorHandlingPolicy(androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy(8))
         .setExtractorFactory(DefaultHlsExtractorFactory(TS_FLAGS, false))
 
     private val progressive = androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(http,
@@ -55,17 +56,18 @@ class Streamer(ctx: Context) {
     init {
         val b = when (Store.buffer) {            // min, max, start, after-rebuffer (ms)
             0 -> intArrayOf(3_000, 10_000, 500, 1_000)
-            2 -> intArrayOf(20_000, 60_000, 2_000, 5_000)
-            else -> intArrayOf(15_000, 50_000, 1_500, 4_000)
+            2 -> intArrayOf(30_000, 120_000, 3_000, 8_000)
+            else -> intArrayOf(25_000, 90_000, 2_000, 6_000)
         }
         val lc = DefaultLoadControl.Builder()
             .setBufferDurationsMs(b[0], b[1], b[2], b[3])
-            .setTargetBufferBytes(24 * 1024 * 1024)
-            .setPrioritizeTimeOverSizeThresholds(false)
+            .setTargetBufferBytes(48 * 1024 * 1024)
+            .setPrioritizeTimeOverSizeThresholds(true)
             .build()
         val ex = DefaultExtractorsFactory().setTsExtractorFlags(TS_FLAGS).setConstantBitrateSeekingEnabled(true)
         p = ExoPlayer.Builder(ctx, DefaultRenderersFactory(ctx).setEnableDecoderFallback(true))
-            .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(http, ex))
+            .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(http, ex)
+                .setLoadErrorHandlingPolicy(androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy(8)))
             .setLoadControl(lc)
             .build()
     }
@@ -82,7 +84,7 @@ class Streamer(ctx: Context) {
         http.setDefaultRequestProperties(hd.filterKeys { it != "User-Agent" })
         val isHls = asHls || u.contains(".m3u8", true)
         val mi = MediaItem.Builder().setUri(u)
-            .setLiveConfiguration(MediaItem.LiveConfiguration.Builder().setMinPlaybackSpeed(1f).setMaxPlaybackSpeed(1f).build())
+            .setLiveConfiguration(MediaItem.LiveConfiguration.Builder().setTargetOffsetMs(15_000).setMinOffsetMs(10_000).setMinPlaybackSpeed(1f).setMaxPlaybackSpeed(1f).build())
         sub?.let { s ->
             val mime = if (s.contains(".vtt", true)) MimeTypes.TEXT_VTT else MimeTypes.APPLICATION_SUBRIP
             mi.setSubtitleConfigurations(listOf(
