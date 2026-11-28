@@ -91,7 +91,29 @@ object Repo {
         }
     }
 
-    /** Adds the live channels of every other saved playlist/server (loaded in parallel, 45s cap each), skipping duplicates. */
+    private fun cached(c: Context, p: Playlist, key: String): Boolean =
+        File(dir(c), "${p.id}_$key").let { it.exists() && System.currentTimeMillis() - it.lastModified() < TTL }
+
+    private val busy = HashSet<String>()
+
+    /** Downloads a big server list in the background so the screen never waits for it; tells the user when it is ready. */
+    private fun prefetch(c: Context, o: Playlist, kind: String) {
+        val k = o.id + kind
+        synchronized(busy) { if (!busy.add(k)) return }
+        val app = c.applicationContext
+        Thread {
+            try {
+                if (kind == "live") { xCats(app, o, "live"); fetch(app, o, "live", api(o, "get_live_streams")) }
+                else { xCats(app, o, "vod"); fetch(app, o, "vod", api(o, "get_vod_streams")) }
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    if (kind == "live") live = null else movies = null
+                    android.widget.Toast.makeText(app, app.getString(R.string.server_ready, o.name), android.widget.Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) { } finally { synchronized(busy) { busy.remove(k) } }
+        }.also { it.isDaemon = true }.start()
+    }
+
+    /** Adds channels of the other saved servers. Servers not downloaded yet load in the background (no waiting). */
     private fun mergeOthers(c: Context, active: Playlist, mine: List<Channel>): List<Channel> {
         val others = Store.playlists().filter { it.id != active.id }
         if (others.isEmpty()) return mine
@@ -99,25 +121,16 @@ object Repo {
         val seen = HashSet<String>()
         mine.forEach { seen.add(likeKey(it.name)) }
         val savedRank = ranks["live"]
-        val pool = java.util.concurrent.Executors.newFixedThreadPool(3)
-        try {
-            val jobs = others.filter { it.type != "m3u" }.map { o -> o to pool.submit<List<Channel>> { xLive(c, o) } }
-            for (o in others.filter { it.type == "m3u" }) {
-                try {
+        for (o in others) {
+            try {
+                val list: List<Channel> = if (o.type == "m3u") {
                     val sl = live; val sm = movies; val ss = series; val se = m3uEps
-                    loadM3u(c, o); val list = live ?: emptyList()
-                    live = sl; movies = sm; series = ss; m3uEps = se
-                    for (ch in list) { val k = likeKey(ch.name); if (k.length >= 3 && seen.add(k)) out.add(ch.copy(id = o.id + ":" + ch.id)) }
-                } catch (e: Exception) { }
-            }
-            for ((o, f) in jobs) {
-                try {
-                    for (ch in f.get(45, java.util.concurrent.TimeUnit.SECONDS)) {
-                        val k = likeKey(ch.name); if (k.length >= 3 && seen.add(k)) out.add(ch.copy(id = o.id + ":" + ch.id))
-                    }
-                } catch (e: Exception) { f.cancel(true) }
-            }
-        } finally { pool.shutdownNow() }
+                    loadM3u(c, o); val r = live ?: emptyList()
+                    live = sl; movies = sm; series = ss; m3uEps = se; r
+                } else if (cached(c, o, "live")) xLive(c, o) else { prefetch(c, o, "live"); emptyList() }
+                for (ch in list) { val k = likeKey(ch.name); if (k.length >= 3 && seen.add(k)) out.add(ch.copy(id = o.id + ":" + ch.id)) }
+            } catch (e: Exception) { }
+        }
         if (savedRank != null) ranks["live"] = savedRank else ranks.remove("live")
         return out
     }
@@ -130,7 +143,8 @@ object Repo {
                 val seen = HashSet<String>(); mine.forEach { seen.add(likeKey(it.name)) }
                 val out = ArrayList<Vod>(mine)
                 for (o in Store.playlists().filter { it.id != p.id && it.type != "m3u" }) {
-                    try { for (v in xMovies(c, o)) if (seen.add(likeKey(v.name))) out.add(v.copy(id = o.id + ":" + v.id)) } catch (e: Exception) { }
+                    try { if (!cached(c, o, "vod")) { prefetch(c, o, "vod"); continue }
+                        for (v in xMovies(c, o)) if (seen.add(likeKey(v.name))) out.add(v.copy(id = o.id + ":" + v.id)) } catch (e: Exception) { }
                 }
                 out.also { movies = it }
             }

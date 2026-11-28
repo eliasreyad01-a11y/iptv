@@ -93,4 +93,5 @@
     <string name="check_channels">فحص القنوات وإخفاء الميتة</string>
     <string name="checking">جاري الفحص…</string>
     <string name="check_done">تم: أخفيت %1$d قناة ميتة من %2$d. بتقدر ترجعهم من الإعدادات.</string>
+    <string name="server_ready">تم تحميل "%1$s" - ادخل القائمة من جديد</string>
 </resources>
