@@ -56,7 +56,7 @@ class Streamer(ctx: Context) {
         val b = when (Store.buffer) {            // min, max, start, after-rebuffer (ms)
             0 -> intArrayOf(3_000, 10_000, 500, 1_000)
             2 -> intArrayOf(20_000, 60_000, 2_000, 5_000)
-            else -> intArrayOf(10_000, 30_000, 1_000, 2_500)
+            else -> intArrayOf(15_000, 50_000, 1_500, 4_000)
         }
         val lc = DefaultLoadControl.Builder()
             .setBufferDurationsMs(b[0], b[1], b[2], b[3])
