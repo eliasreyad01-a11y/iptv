@@ -98,6 +98,7 @@ class LiveActivity : BrowseBase<Channel>() {
 
     override fun onCreate(b: android.os.Bundle?) {
         super.onCreate(b)
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         val root = findViewById<View>(R.id.root)
         val slot = findViewById<View>(R.id.flSlot)
         val place = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> placeOverlay() }
