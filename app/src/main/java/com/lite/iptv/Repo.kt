@@ -236,10 +236,12 @@ object Repo {
         return out.filter { seen.add(it.group + "|" + likeKey(it.name)) }
     }
 
-    private fun likeKey(n: String): String = n.lowercase()
-        .replace(Regex("\\[[^]]*]|\\([^)]*\\)"), " ")
-        .replace(Regex("\\b(fhd|uhd|hd|sd|4k|hevc|h265|backup|raw|\\d{3,4}p)\\b"), " ")
-        .replace(Regex("[^\\p{L}\\p{N}]+"), "")
+    private val rxTags = Regex("""\[[^\]]*\]|\([^)]*\)""")
+    private val rxQual = Regex("""\b(fhd|uhd|hd|sd|4k|hevc|h265|backup|raw|\d{3,4}p)\b""")
+    private val rxNon = Regex("""[^\p{L}\p{N}]+""")
+    private fun likeKey(n: String): String = try {
+        n.lowercase().replace(rxTags, " ").replace(rxQual, " ").replace(rxNon, "")
+    } catch (e: Exception) { n.lowercase().trim() }
 
     private fun xMovies(c: Context, p: Playlist): List<Vod> {
         val cats = xCats(c, p, "vod")
