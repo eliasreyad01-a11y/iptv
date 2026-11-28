@@ -85,16 +85,45 @@ object Repo {
         val p = prov()
         live ?: synchronized(this@Repo) {
             live ?: run {
-                if (p.type == "m3u") { loadM3u(c, p); live ?: emptyList() } else xLive(c, p).also { live = it }
+                val mine = if (p.type == "m3u") { loadM3u(c, p); live ?: emptyList() } else xLive(c, p)
+                mergeOthers(c, p, mine).also { live = it }
             }
         }
+    }
+
+    /** Adds the live channels of every other saved playlist/server, dropping channels that already exist. */
+    private fun mergeOthers(c: Context, active: Playlist, mine: List<Channel>): List<Channel> {
+        val others = Store.playlists().filter { it.id != active.id }
+        if (others.isEmpty()) return mine
+        val out = ArrayList<Channel>(mine)
+        val seen = HashSet<String>()
+        mine.forEach { seen.add(likeKey(it.name)) }
+        for (o in others) {
+            try {
+                val sl = live; val sm = movies; val ss = series; val se = m3uEps; val sr = ranks["live"]
+                val list = if (o.type == "m3u") { loadM3u(c, o); live ?: emptyList() } else xLive(c, o)
+                live = sl; movies = sm; series = ss; m3uEps = se
+                if (sr != null) ranks["live"] = sr else ranks.remove("live")
+                for (ch in list) {
+                    val k = likeKey(ch.name)
+                    if (k.length >= 3 && seen.add(k)) out.add(ch.copy(id = o.id + ":" + ch.id))
+                }
+            } catch (e: Exception) { /* an unreachable server must not break the others */ }
+        }
+        return out
     }
 
     suspend fun movies(c: Context): List<Vod> = withContext(Dispatchers.IO) {
         val p = prov()
         movies ?: synchronized(this@Repo) {
             movies ?: run {
-                if (p.type == "m3u") { loadM3u(c, p); movies ?: emptyList() } else xMovies(c, p).also { movies = it }
+                val mine = if (p.type == "m3u") { loadM3u(c, p); movies ?: emptyList() } else xMovies(c, p)
+                val seen = HashSet<String>(); mine.forEach { seen.add(likeKey(it.name)) }
+                val out = ArrayList<Vod>(mine)
+                for (o in Store.playlists().filter { it.id != p.id && it.type != "m3u" }) {
+                    try { for (v in xMovies(c, o)) if (seen.add(likeKey(v.name))) out.add(v.copy(id = o.id + ":" + v.id)) } catch (e: Exception) { }
+                }
+                out.also { movies = it }
             }
         }
     }
